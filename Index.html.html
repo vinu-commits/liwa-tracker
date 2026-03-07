@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LIWA | Management Portal</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    :root { --liwa-black: #1A1A1A; --liwa-orange: #F05A3E; --liwa-gray: #F4F4F4; }
+    body { background: var(--liwa-gray); font-family: 'Segoe UI', sans-serif; }
+    
+    #loginPage { height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--liwa-black); }
+    .login-card { width: 380px; padding: 45px; border-radius: 8px; background: white; text-align: center; border-top: 5px solid var(--liwa-orange); }
+    .liwa-logo-text { color: var(--liwa-black); font-weight: 800; letter-spacing: -2px; font-size: 3rem; margin-bottom: 0; }
+    .dot { color: var(--liwa-orange); }
+
+    #mainApp { display: none; padding: 25px; }
+    .header-bar { background: white; padding: 15px 30px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 6px solid var(--liwa-black); }
+    
+    .btn-liwa { background-color: var(--liwa-black); color: white; font-weight: 600; border: none; }
+    .btn-liwa:hover { background-color: var(--liwa-orange); }
+    .btn-save { background-color: var(--liwa-orange); color: white; border: none; font-weight: bold; }
+    .readonly-field { background-color: #f0f0f0 !important; cursor: not-allowed; color: #888 !important; }
+    .manual-mode-active { border: 2px solid var(--liwa-orange) !important; background-color: #fff !important; pointer-events: auto !important; }
+    
+    .card { border: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+    .table thead { background-color: var(--liwa-black); color: white; }
+    .user-pill { font-size: 0.75rem; padding: 4px 10px; background: #eee; border-radius: 20px; color: #333; font-weight: 600; display: inline-block; margin: 2px; }
+    .analysis-header { border-bottom: 2px solid var(--liwa-orange); padding-bottom: 10px; margin-bottom: 20px; }
+    
+    #syncIndicator { font-size: 0.7rem; color: var(--liwa-orange); font-weight: bold; display: none; }
+  </style>
+</head>
+<body>
+
+<div id="loginPage">
+  <div class="login-card shadow">
+    <h1 class="liwa-logo-text">LIWA<span class="dot">.</span></h1>
+    <p class="text-muted small mb-4">Internal Management Portal</p>
+    <div class="text-start">
+        <label class="small fw-bold">User ID</label><input type="text" id="userId" class="form-control mb-3">
+        <label class="small fw-bold">Password</label><input type="password" id="userPass" class="form-control mb-4">
+    </div>
+    <button class="btn btn-liwa w-100 py-2" id="loginBtn" onclick="handleLogin()">LOGIN</button>
+    <div id="loginError" class="text-danger mt-3 small fw-bold text-center"></div>
+  </div>
+</div>
+
+<div class="modal fade" id="startModal" data-bs-backdrop="static" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0">
+      <div class="modal-header bg-dark text-white border-0"><h5>Daily Initialization</h5></div>
+      <div class="modal-body p-4">
+        <label class="fw-bold small">Date</label><input type="date" id="modalDate" class="form-control mb-3">
+        <label class="fw-bold small">First Start Time</label><input type="time" id="modalStartTime" class="form-control">
+      </div>
+      <div class="modal-footer border-0"><button class="btn btn-save w-100 py-2" onclick="confirmStart()">BEGIN SESSION</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="mainApp">
+  <div class="header-bar d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center">
+        <h2 class="m-0 fw-bold liwa-logo-text" style="font-size: 2rem;">LIWA<span class="dot">.</span></h2>
+        <div class="ms-4 ps-3 border-start">
+            <span class="text-muted small">Access: <b id="userRoleBadge">User</b></span><br>
+            <span id="userNameDisplay" class="fw-bold text-dark"></span>
+            <div id="syncIndicator">● SYNCING DATA...</div>
+        </div>
+    </div>
+    <div class="d-flex align-items-center">
+        <div id="personalTotalContainer" class="text-end me-4">
+            <span class="text-muted small">My Today</span>
+            <h4 class="m-0 fw-bold" style="color:var(--liwa-orange)"><span id="dayTotal">0.00</span> <small>hrs</small></h4>
+        </div>
+        <button id="syncBtn" class="btn btn-outline-dark btn-sm me-2" onclick="refresh()">🔄 Sync Now</button>
+        <button id="setupBtn" class="btn btn-dark btn-sm me-2" onclick="$('#adminArea').slideToggle()">⚙️ Setup</button>
+        <button class="btn btn-outline-danger btn-sm" onclick="handleLogout()">Logout</button>
+    </div>
+  </div>
+
+  <div id="adminAnalytics" style="display:none;">
+    <div class="card p-4 mb-4 border-0 shadow-sm">
+        <div class="analysis-header d-flex justify-content-between align-items-center">
+            <h4 class="fw-bold m-0">Project Analysis <span class="dot">.</span></h4>
+            <div class="text-end">
+                <small class="text-muted d-block fw-bold">TOTAL COMPANY HOURS</small>
+                <h2 class="m-0 fw-bold" style="color:var(--liwa-orange)" id="statTotalHours">0.00</h2>
+            </div>
+        </div>
+        <div id="analyticsTable"></div>
+    </div>
+  </div>
+
+  <div id="userWorkArea">
+      <div id="adminArea" class="card p-4 mb-4" style="display:none; border: 1px dashed var(--liwa-orange);">
+        <h6 class="fw-bold mb-3">Master List Management</h6>
+        <div class="row g-2">
+          <div class="col-md-4"><input type="text" id="newClient" class="form-control" placeholder="New Client"></div>
+          <div class="col-md-2"><button class="btn btn-dark w-100" onclick="addOption('client')">Add</button></div>
+          <div class="col-md-4"><input type="text" id="newProject" class="form-control" placeholder="New Project"></div>
+          <div class="col-md-2"><button class="btn btn-dark w-100" onclick="addOption('project')">Add</button></div>
+        </div>
+      </div>
+
+      <div class="card p-4 mb-4 border-0 shadow-sm">
+        <div class="d-flex justify-content-between mb-3 align-items-center">
+            <h5 class="m-0 fw-bold">Log Activity</h5>
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="manualMode" onclick="toggleManualMode()"><label class="form-check-label small fw-bold" for="manualMode">Manual Override</label></div>
+        </div>
+        <form id="trackerForm">
+          <div class="row g-3">
+            <div class="col-md-2"><label class="small fw-bold">Date</label><input type="date" id="date" class="form-control readonly-field" readonly required></div>
+            <div class="col-md-2"><label class="small fw-bold">Start</label><div id="startTimeContainer"><input type="text" id="startTime" class="form-control readonly-field" readonly required></div></div>
+            <div class="col-md-2"><label class="small fw-bold text-orange">End</label><input type="time" id="endTime" class="form-control" required></div>
+            <div class="col-md-3"><label class="small fw-bold">Client</label><select id="clientSelect" class="form-select" required></select></div>
+            <div class="col-md-3"><label class="small fw-bold">Project</label><select id="projectSelect" class="form-select" required></select></div>
+            <div class="col-md-10 mt-3"><input type="text" id="notes" class="form-control" placeholder="What was done?" required></div>
+            <div class="col-md-2 mt-3"><button type="submit" id="saveBtn" class="btn btn-save w-100 fw-bold">SAVE</button></div>
+          </div>
+        </form>
+      </div>
+
+      <div class="card p-0 overflow-hidden shadow-sm border-0">
+        <div class="card-header bg-white py-3 border-0"><h6 class="m-0 fw-bold">My Personal History</h6></div>
+        <table class="table table-hover mb-0">
+          <thead><tr><th class="ps-4">Date</th><th>Time</th><th>Project</th><th>Notes</th><th class="text-center">Hrs</th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycby5jTUquLzhICsyiBrmpr8nvHKvGj8zsHH6SkQNtM696mYcGxfPEK3YtKvMMZIK5YXdJw/exec";
+  let LOGGED_IN_USER = "";
+  let IS_ADMIN = false;
+  let sessionModal;
+
+  $(document).ready(function() {
+    sessionModal = new bootstrap.Modal(document.getElementById('startModal'));
+    document.getElementById('modalDate').valueAsDate = new Date();
+    
+    // CHECK LOCAL STORAGE ON REFRESH
+    const savedUser = localStorage.getItem('liwa_user');
+    const savedAdmin = localStorage.getItem('liwa_admin');
+    if(savedUser){
+        LOGGED_IN_USER = savedUser;
+        IS_ADMIN = (savedAdmin === 'true');
+        showMainApp();
+    }
+    
+    // AUTO SYNC EVERY 30 SECONDS
+    setInterval(refresh, 30000);
+  });
+
+  function handleLogin() {
+    const id = $("#userId").val();
+    const pass = $("#userPass").val();
+    $("#loginBtn").prop("disabled", true).text("Loading...");
+    
+    fetch(WEB_APP_URL, { method: "POST", body: JSON.stringify({ action: "login", userId: id, password: pass }) })
+    .then(r => r.json()).then(res => {
+      if (res.success) {
+        LOGGED_IN_USER = res.fullName;
+        IS_ADMIN = res.isAdmin;
+        // SAVE TO LOCAL STORAGE
+        localStorage.setItem('liwa_user', LOGGED_IN_USER);
+        localStorage.setItem('liwa_admin', IS_ADMIN);
+        showMainApp();
+      } else { 
+          $("#loginError").text(res.message); 
+          $("#loginBtn").prop("disabled", false).text("LOGIN");
+      }
+    });
+  }
+
+  function handleLogout() {
+      localStorage.clear();
+      location.reload();
+  }
+
+  function showMainApp() {
+      $("#loginPage").hide();
+      $("#mainApp").show();
+      $("#userNameDisplay").text(LOGGED_IN_USER);
+      if(IS_ADMIN) {
+          $("#userWorkArea, #personalTotalContainer, #setupBtn").hide();
+          $("#adminAnalytics").show();
+          $("#userRoleBadge").text("Administrator").css("color", "var(--liwa-orange)");
+      }
+      refresh();
+  }
+
+  function format12hr(t) {
+    if(!t || t.includes('AM') || t.includes('PM')) return t;
+    if(t.includes('T')) return new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    let [h, m] = t.split(':');
+    let hh = parseInt(h);
+    let suffix = hh >= 12 ? "PM" : "AM";
+    return `${((hh + 11) % 12 + 1)}:${m} ${suffix}`;
+  }
+
+  function toggleManualMode() {
+    if($("#manualMode").is(":checked")) {
+        $("#date").removeClass("readonly-field").prop("readonly", false).addClass("manual-mode-active");
+        $("#startTimeContainer").html('<input type="time" id="startTime" class="form-control manual-mode-active" required>');
+    } else { refresh(); }
+  }
+
+  function refresh() {
+    $("#syncIndicator").fadeIn();
+    fetch(WEB_APP_URL).then(r => r.json()).then(data => {
+      render(data);
+      if (!IS_ADMIN && !$("#manualMode").is(":checked")) {
+          const today = new Date().toLocaleDateString();
+          const myLogs = data.logs.filter(r => r[0] && new Date(r[0]).toLocaleDateString() === today && r[7] === LOGGED_IN_USER);
+          if (myLogs.length > 0) {
+            $("#date").val(new Date().toISOString().split('T')[0]).addClass("readonly-field").prop("readonly", true).removeClass("manual-mode-active");
+            $("#startTimeContainer").html('<input type="text" id="startTime" class="form-control readonly-field" readonly required>');
+            $("#startTime").val(format12hr(myLogs[0][2]));
+          } else { 
+              if($("#mainApp").is(":visible")) sessionModal.show(); 
+          }
+      }
+      $("#syncIndicator").fadeOut();
+    });
+  }
+
+  function confirmStart() {
+    if (!$("#modalStartTime").val()) return alert("Set Time");
+    $("#date").val($("#modalDate").val());
+    $("#startTime").val(format12hr($("#modalStartTime").val()));
+    sessionModal.hide();
+  }
+
+  function render(data) {
+    $("#clientSelect").html('<option value="">Select...</option>' + data.clients.map(c => `<option value="${c}">${c}</option>`).join(''));
+    $("#projectSelect").html('<option value="">Select...</option>' + data.projects.map(p => `<option value="${p}">${p}</option>`).join(''));
+    
+    if(!IS_ADMIN) {
+        let personalTotal = 0;
+        const today = new Date().toLocaleDateString();
+        const myLogsOnly = data.logs.filter(r => r[7] === LOGGED_IN_USER);
+        $("#tableBody").html(myLogsOnly.map(r => {
+          const logDate = new Date(r[0]).toLocaleDateString();
+          if(logDate === today) personalTotal += parseFloat(r[6] || 0);
+          return `<tr><td class="ps-4 small">${logDate}</td><td>${format12hr(r[1])}-${format12hr(r[2])}</td><td><b>${r[4]}</b></td><td class="small">${r[5]}</td><td class="text-center"><b>${r[6]}</b></td></tr>`;
+        }).join(''));
+        $("#dayTotal").text(personalTotal.toFixed(2));
+    }
+
+    if (IS_ADMIN) runAdvancedAnalysis(data.logs);
+  }
+
+  function runAdvancedAnalysis(logs) {
+    let projectSummary = {};
+    let totalCompanyHours = 0;
+    logs.forEach(row => {
+        const client = row[3], project = row[4], hours = parseFloat(row[6] || 0), user = row[7];
+        totalCompanyHours += hours;
+        if (!projectSummary[project]) projectSummary[project] = { client: client, total: 0, users: {} };
+        projectSummary[project].total += hours;
+        if (!projectSummary[project].users[user]) projectSummary[project].users[user] = 0;
+        projectSummary[project].users[user] += hours;
+    });
+
+    let projectHtml = "";
+    for (let p in projectSummary) {
+        let userDetails = Object.entries(projectSummary[p].users)
+            .sort((a,b) => b[1] - a[1])
+            .map(([u, h]) => `<span class="user-pill">${u}: <b>${h.toFixed(2)}h</b></span>`).join(' ');
+
+        projectHtml += `
+            <div class="card mb-4 p-4 border-0 shadow-sm bg-white">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div><h5 class="fw-bold m-0 text-dark">${p}</h5><small class="text-muted">Client: ${projectSummary[p].client}</small></div>
+                    <div class="text-end"><span class="h4 fw-bold text-dark">${projectSummary[p].total.toFixed(2)}</span> <small class="fw-bold">hrs</small></div>
+                </div>
+                <div class="mb-2"><small class="fw-bold text-muted small">USER BIFURCATION:</small></div>
+                <div>${userDetails}</div>
+                <div class="progress mt-4" style="height: 8px;">
+                    <div class="progress-bar" style="width: ${(projectSummary[p].total / totalCompanyHours * 100)}%; background: var(--liwa-orange);"></div>
+                </div>
+            </div>`;
+    }
+    $("#analyticsTable").html(projectHtml || '<p class="text-center p-5 text-muted">Waiting for log data...</p>');
+    $("#statTotalHours").text(totalCompanyHours.toFixed(2));
+  }
+
+  $("#trackerForm").on("submit", function(e) {
+    e.preventDefault();
+    $("#saveBtn").prop("disabled", true).text("Saving...");
+    const payload = { action: "saveLog", data: { date: $("#date").val(), startTime: format12hr($("#startTime").val()), endTime: format12hr($("#endTime").val()), client: $("#clientSelect").val(), project: $("#projectSelect").val(), notes: $("#notes").val(), user: LOGGED_IN_USER } };
+    fetch(WEB_APP_URL, { method: "POST", body: JSON.stringify(payload) }).then(res => res.json()).then(data => { 
+        $("#manualMode").prop("checked", false); render(data); refresh(); $("#saveBtn").prop("disabled", false).text("SAVE LOG"); $("#endTime, #notes").val(""); 
+    });
+  });
+
+  function addOption(type) {
+    const val = (type === 'client') ? $("#newClient").val() : $("#newProject").val();
+    if(!val) return;
+    fetch(WEB_APP_URL, { method: "POST", body: JSON.stringify({ action: "addOption", type: type, value: val }) }).then(res => res.json()).then(data => { render(data); $("#newClient, #newProject").val(""); alert("List Updated"); });
+  }
+</script>
+</body>
+</html>
